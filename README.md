@@ -770,27 +770,55 @@ router.put('/:id', auth,checkOwner,update)
 
 ### 10.1 安装koa-body
 
-采用koa-body替换koa-bodyparser，因为koa-bodyparser不支持文件格式
+采用`koa-body`替换koa-bodyparser，因为koa-bodyparser不支持文件格式
 
 ```bash
 npm install koa-body --save
 ```
 
-设置图片上传目录
+在`app.js`中引入模块，并设置存储目录`ip_zhihu/public/uploads`，将原先的`koa-bodyparser`全部替换
 
 ```js
-const koaBody = require('koa-body')
+const {koaBody} = require('koa-body')
 const path = require('path')
+const fs = require('fs')
 app.use(koaBody({
-    multipart:true,		// 支持文件上传
-    formidable: {
-        uploadDir: path.join(__dirname,'/public/uploads'),	// 上传目录
-        keepExtensions: true	// 保留拓展名
+    multipart:true,
+    formidable:{
+        // 指定上传文件的存放路径
+        uploadDir:path.join(__dirname,'/public/uploads'),
+        // 保持文件的后缀
+        keepExtensions:true,
+        // 文件上传大小限制
+        maxFieldsSize: 10 * 1024 * 1024, 
+        // 改文件名
+        onFileBegin:(name,file) =>{
+            // 最终要保存到的文件夹目录
+            const dirName = format(new Date(), "yyyyMMddhhmmss");
+            const dir = path.join(__dirname, `public/upload/${dirName}`);
+            // 检查文件夹是否存在，不存在则创建
+            if (!fs.existsSync(dir)) {
+                fs.mkdirSync(dir, { recursive: true });
+                // 文件保存重命名
+            }
+            // 文件名称去掉特殊字符但保留原始文件名称
+            const fileName = file.name
+            .replaceAll(" ", "_")
+            .replace(/[`~!@#$%^&*()|\-=?;:'",<>\{\}\\\/]/gi, "_");
+            file.name = fileName;
+            // 覆盖文件存放的完整路径(保留原始名称)
+            file.path = `${dir}/${fileName}`;
+        },
+        onError: (error) => {
+            // 这里可以定义自己的返回内容
+            app.body = { code: 400, msg: "上传失败", data: {} };
+            return;
+          },
     }
 }))
 ```
 
-上传接口设置
+在`controllers/homes.js`中设置上传接口
 
 ```js
 upload(ctx){

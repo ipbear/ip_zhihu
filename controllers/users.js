@@ -76,5 +76,10 @@ class UserCtl {
             ctx.body = user
         }
     }
+    // 上传文件
+    async upload(ctx){
+        const file = ctx.request.files.file
+        ctx.body = {path:file.path}
+    }
 }
 module.exports = new UserCtl();

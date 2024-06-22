@@ -494,7 +494,29 @@ module.exports = model('User',UserSchema)
 
 ```js
 const User = require('../models/users.js')
+const jsonwebtoken = require('jsonwebtoken')
+const {secret} = require('../config')
 class UserCtl {
+    // 用户登录
+    async login(ctx){
+        ctx.verifyParams({
+            name: {type: 'string', required: true},
+            password:{type:'string', required: true}
+        })
+        const user = await User.findOne(ctx.request.body)
+        if(!user){ctx.throw(401, '用户名或密码不正确')}
+        const {_id, name} = user
+        try {
+            const token = jsonwebtoken.sign({_id, name},secret,{expiresIn: '1d'})
+            ctx.body = {token}
+        } catch (error) {
+            if (err.name === 'TokenExpiredError') {
+                ctx.body = { message: 'Token已超时，请重新登录' }
+            } else {
+                ctx.body = { message: err.message }
+            }
+        }
+    }
     // 创建用户
     async create(ctx){
         ctx.verifyParams({
@@ -520,14 +542,19 @@ class UserCtl {
     // 更新用户
     async update(ctx){
         ctx.verifyParams({
-            name: {type: 'string'},
-            password:{type:'string'}
+            name: {type: 'string',required:false},
+            password:{type:'string',required:false}
         })
-        const user = await User.findByIdAndUpdate(ctx.params.id, ctx.request.body)
-        if(!user){
+        console.log(ctx.request.body.name)
+        const existingUser = await User.findOne({name:ctx.request.body.name})
+        if (existingUser) {
+            ctx.throw(400, '用户名已存在');
+        }
+        const updateUser = await User.findByIdAndUpdate(ctx.params.id, ctx.request.body, {new:true})
+        if(!updateUser){
             ctx.throw(404, 'user不存在')
         } else {
-            ctx.body = user
+            ctx.body = updateUser
         }
 
     }
@@ -655,11 +682,35 @@ router.post('/login', login)
 
 ### 9.2 采用jsonwebtoken形式验证token
 
-在`routes/users.js`中进行token验证
+在`middleware/auth.js`中进行token验证
 
+```js
+const jsonwebtoken = require("jsonwebtoken")
+const {secret} = require("../config")
+module.exports = async(ctx,next)=>{
+    const {authorization} = ctx.request.header
+    const token = authorization.replace('Bearer ','')
+    try {
+        const user = jsonwebtoken.verify(token,secret)
+        console.log('user',user)
+        ctx.state.user = user
+    } catch (error) {
+        ctx.throw(401,error.message)
+    }
+    await next()
+}
+```
 
+在`routes/users.js`路由中引入使用
 
-## 10. 采用koa-jwt用户认证与授权
+```js
+const auth = require('../middleware/auth.js')
+
+router.delete('/:id',auth, remove)
+router.put('/:id', auth,update)
+```
+
+## 10. 升级koa-jwt用户认证与授权
 
 注意这是认证与授权，token的生成还是采用`json-web-token`模块
 
@@ -669,24 +720,46 @@ router.post('/login', login)
 npm install koa-jwt --save
 ```
 
-使用中间件保护接口
-
-将如果jwt令牌有效用户信息放到了`ctx.state.user`上面
+重新升级`middleware/auth.js`文件
 
 ```js
-const jwt = require('koa-jwt')
+const koajwt = require('koa-jwt')
+const { secret } = require('../config')
+module.exports = async(ctx,next) => {
+    koajwt({secret})
+    await next()
+}
+```
 
-const auth = jwt({secret})
+将如果jwt令牌有效用户信息**自动**放到了`ctx.state.user`上面
+
+同样在`routes/users.js`中引入使用
+
+```js
+const auth = require('../middleware/auth.js')
+
+router.delete('/:id',auth, remove)
+router.put('/:id', auth,update)
 
 router.patch('/:id',auth,checkOwner,update)
 ```
 
-使用中间件获取用户信息
+在`middlewere/validate.js`中新建判断是否为当前用户的中间件
 
 ```js
-async checkOwener(ctx,next){
+module.exports = async (ctx,next)=>{
     if(ctx.params.id !== ctx.state.user._id){ctx.throw(403,'没有权限')}
+    await next()
 }
+```
+
+并在`routes/users.js`中引入，放在修改、删除中
+
+```js
+const checkOwner = require('../middleware/validate.js')
+
+router.delete('/:id',auth,checkOwner, remove)
+router.put('/:id', auth,checkOwner,update)
 ```
 
 ## 10. 上传图片

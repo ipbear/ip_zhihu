@@ -10,10 +10,10 @@ const koaJsonError = require('koa-json-error')
 const parameter = require('koa-parameter')
 const {connectionStr} = require('./config')
 const errorMiddleware = require('./middleware/error')
+const port = process.env.PORT || 8000
 app.use(koaJsonError({
     postFormat:(e,{ stack, ...rest})=> process.env.NODE_ENV ==='production' ? rest : {stack,...rest}
 }))
-
 app.use(bodyParser())
 app.use(parameter(app))
 mongoose.connect(connectionStr)
@@ -28,4 +28,4 @@ routing(app)
 
 // 错误处理中间件
 app.use(errorMiddleware)
-app.listen(3000,()=>console.log('服务器在3000端口运行'))
+app.listen(port,()=>console.log(`服务器在${port}端口运行`))

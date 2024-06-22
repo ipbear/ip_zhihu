@@ -47,14 +47,19 @@ class UserCtl {
     // 更新用户
     async update(ctx){
         ctx.verifyParams({
-            name: {type: 'string'},
-            password:{type:'string'}
+            name: {type: 'string',required:false},
+            password:{type:'string',required:false}
         })
-        const user = await User.findByIdAndUpdate(ctx.params.id, ctx.request.body)
-        if(!user){
+        console.log(ctx.request.body.name)
+        const existingUser = await User.findOne({name:ctx.request.body.name})
+        if (existingUser) {
+            ctx.throw(400, '用户名已存在');
+        }
+        const updateUser = await User.findByIdAndUpdate(ctx.params.id, ctx.request.body, {new:true})
+        if(!updateUser){
             ctx.throw(404, 'user不存在')
         } else {
-            ctx.body = user
+            ctx.body = updateUser
         }
 
     }

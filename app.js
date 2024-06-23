@@ -4,12 +4,13 @@ const app = new Koa()
 const Router = require('koa-router')
 // 2.new一个对象
 const mongoose = require('mongoose')
-const {koaBody} = require('koa-body')
 const routing = require('./routes/index')
 const koaJsonError = require('koa-json-error')
 const parameter = require('koa-parameter')
 const {connectionStr} = require('./config')
 const errorMiddleware = require('./middleware/error')
+const {koaBody} = require('koa-body')
+
 const path = require('path')
 const fs = require('fs')
 const port = process.env.PORT || 8000
@@ -17,33 +18,32 @@ app.use(koaJsonError({
     postFormat:(e,{ stack, ...rest})=> process.env.NODE_ENV ==='production' ? rest : {stack,...rest}
 }))
 app.use(koaBody({
-    multipart:true,
-    formidable:{
-        // 指定上传文件的存放路径
-        uploadDir:path.join(__dirname,'/public/uploads'),
-        // 保持文件的后缀
-        keepExtensions:true,
-        // 文件上传大小限制
-        maxFieldsSize: 10 * 1024 * 1024, 
-        // 改文件名
-        onFileBegin:(name,file) =>{
-            console.log('=====>',file.originalFilename)
-            获取文件后缀
-            const extname = file.originalFilename.split('.')
-            console.log("--->",extname)
-            // 修改文件名
-            // 修改文件名
-            // file.name = `${Date.now()}${extname}`
-            // console.log(file.name)
-            // file.path = path.join(__dirname,'/public/uploads',file.name)
-        },
-        onError: (error) => {
-            // 这里可以定义自己的返回内容
-            app.body = { code: 400, msg: "上传失败", data: {} };
-            return;
-          },
-    }
-}))
+    multipart: true,
+    formidable: {
+      // 指定上传文件的存放路径
+      uploadDir: path.join(__dirname, '/public/uploads'),
+      // 保持文件的后缀
+      keepExtensions: true,
+      // 文件上传大小限制
+      maxFieldsSize: 10 * 1024 * 1024,
+      // 改文件名
+      onFileBegin: (name, file) => {
+        console.log('name',name)
+        const extname = path.extname(file.originalFilename);
+        // 修改文件名
+        file.name = `${Date.now()}${extname}`;
+        console.log(file.name);
+        file.path = path.join(__dirname, '/public/uploads', file.name);
+      },
+      onError: (error) => {
+        // 这里可以定义自己的返回内容
+        app.body = { code: 400, msg: "上传失败", data: {} };
+        return;
+      },
+    },
+  }))
+  
+  
 app.use(parameter(app))
 mongoose.connect(connectionStr)
 mongoose.connection.on('error',()=>{

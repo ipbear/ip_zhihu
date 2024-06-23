@@ -1,6 +1,7 @@
 const User = require('../models/users.js')
 const jsonwebtoken = require('jsonwebtoken')
 const {secret} = require('../config')
+
 class UserCtl {
     // 用户登录
     async login(ctx){
@@ -75,11 +76,6 @@ class UserCtl {
         } else {
             ctx.body = user
         }
-    }
-    // 上传文件
-    async upload(ctx){
-        const file = ctx.request.files.file
-        ctx.body = {path:file.path}
     }
 }
 module.exports = new UserCtl();

@@ -5,9 +5,10 @@ class homeCtl {
     }
   upload(ctx){
     const file = ctx.request.files.file
-  
+    const basename = path.basename(file.filepath)
+    console.log('文件名',basename)
     // 文件上传后的路径
-    ctx.body = file.path
+    ctx.body = {url:`${ctx.origin}/uploads/${basename}`}
   }
 }
 module.exports = new homeCtl()

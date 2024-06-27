@@ -783,55 +783,56 @@ const {koaBody} = require('koa-body')
 const path = require('path')
 const fs = require('fs')
 app.use(koaBody({
-    multipart:true,
-    formidable:{
-        // 指定上传文件的存放路径
-        uploadDir:path.join(__dirname,'/public/uploads'),
-        // 保持文件的后缀
-        keepExtensions:true,
-        // 文件上传大小限制
-        maxFieldsSize: 10 * 1024 * 1024, 
-        // 改文件名
-        onFileBegin:(name,file) =>{
-            // 最终要保存到的文件夹目录
-            const dirName = format(new Date(), "yyyyMMddhhmmss");
-            const dir = path.join(__dirname, `public/upload/${dirName}`);
-            // 检查文件夹是否存在，不存在则创建
-            if (!fs.existsSync(dir)) {
-                fs.mkdirSync(dir, { recursive: true });
-                // 文件保存重命名
-            }
-            // 文件名称去掉特殊字符但保留原始文件名称
-            const fileName = file.name
-            .replaceAll(" ", "_")
-            .replace(/[`~!@#$%^&*()|\-=?;:'",<>\{\}\\\/]/gi, "_");
-            file.name = fileName;
-            // 覆盖文件存放的完整路径(保留原始名称)
-            file.path = `${dir}/${fileName}`;
-        },
-        onError: (error) => {
-            // 这里可以定义自己的返回内容
-            app.body = { code: 400, msg: "上传失败", data: {} };
-            return;
-          },
-    }
-}))
+    multipart: true,
+    formidable: {
+      // 指定上传文件的存放路径
+      uploadDir: path.join(__dirname, '/public/uploads'),
+      // 保持文件的后缀
+      keepExtensions: true,
+      // 文件上传大小限制
+      maxFieldsSize: 10 * 1024 * 1024,
+      // 改文件名
+      onFileBegin: (name, file) => {
+        const extname = path.extname(file.originalFilename);
+        // // 修改文件名
+        file.newFilename = dayjs().format('YYYYMMDDHHmmss') + extname
+        file.filepath = path.join(__dirname, './public/uploads', file.newFilename);
+      },
+      onError: (error) => {
+        // 这里可以定义自己的返回内容
+        app.body = { code: 400, msg: "上传失败", data: {} };
+        return;
+      },
+    },
+  }))
 ```
 
 在`controllers/homes.js`中设置上传接口
 
 ```js
-upload(ctx){
-    const file = ctx.request.files.file	  // file名字随意
-    ctx.body = { path：file.path}	// 返回路径
+class homeCtl {
+ ...
+  upload(ctx){
+    const file = ctx.request.files.file
+
+    // 文件上传后的路径
+    ctx.body = file.filepath
+  }
 }
+module.exports = new homeCtl()
 ```
 
 ### 10.2 采用koa-static生成图片链接
 
 生成类似于`http//localhost:3000/xxxx.jpg`形势
 
-安装koa-static
+> 如果我们的`koaStatic(path.join(__dirname,'public'))`那么我们在访问在**public**下的文件时，我们的路径就不需要添加**public**，可以直接访问了。
+>
+> 例如：**实际地址为：localhost:8000/public/uploads/122131321.png**
+>
+> ​          **访问地址则为：localhost:8000/uploads/122131321.png**
+
+**安装koa-static**
 
 ```bash
 npm install koa-static --save

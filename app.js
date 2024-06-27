@@ -8,15 +8,20 @@ const routing = require('./routes/index')
 const koaJsonError = require('koa-json-error')
 const parameter = require('koa-parameter')
 const {connectionStr} = require('./config')
-const errorMiddleware = require('./middleware/error')
+const errorMiddleware = require('./middlewares/error')
 const {koaBody} = require('koa-body')
-
+const koaStatic = require('koa-static')
 const path = require('path')
 const fs = require('fs')
+const dayjs = require('dayjs')
 const port = process.env.PORT || 8000
+
+
+app.use(koaStatic(path.join(__dirname,'/public')))
 app.use(koaJsonError({
     postFormat:(e,{ stack, ...rest})=> process.env.NODE_ENV ==='production' ? rest : {stack,...rest}
 }))
+
 app.use(koaBody({
     multipart: true,
     formidable: {
@@ -28,12 +33,10 @@ app.use(koaBody({
       maxFieldsSize: 10 * 1024 * 1024,
       // 改文件名
       onFileBegin: (name, file) => {
-        console.log('name',name)
         const extname = path.extname(file.originalFilename);
-        // 修改文件名
-        file.name = `${Date.now()}${extname}`;
-        console.log(file.name);
-        file.path = path.join(__dirname, '/public/uploads', file.name);
+        // // 修改文件名
+        file.newFilename = dayjs().format('YYYYMMDDHHmmss') + extname
+        file.filepath = path.join(__dirname, './public/uploads', file.newFilename);
       },
       onError: (error) => {
         // 这里可以定义自己的返回内容
@@ -42,8 +45,6 @@ app.use(koaBody({
       },
     },
   }))
-  
-  
 app.use(parameter(app))
 mongoose.connect(connectionStr)
 mongoose.connection.on('error',()=>{

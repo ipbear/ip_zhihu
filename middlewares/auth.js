@@ -16,5 +16,6 @@ const koajwt = require('koa-jwt')
 const { secret } = require('../config')
 module.exports = async(ctx,next) => {
     koajwt({secret})
+    console.log('===>',ctx.state.user)
     await next()
 }

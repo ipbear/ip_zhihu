@@ -871,6 +871,8 @@ upload(ctx){
 
 ## 11. 个人资料设置
 
+![image-20240627153410395](https://s2.loli.net/2024/06/27/r9kiSA4yCZMTN8f.png)
+
 ### 11.1 个人资料schema设置
 
 在`models/users.js`中设置用户模型
@@ -906,26 +908,26 @@ const userSchema = new Schema({
 
 ### 11.2 个人资料参数校验
 
-更新用户信息验证
+新建`utils/validate.js`更新用户信息验证
 
 ```js
-async update(ctx){
-    ctx.verifyParams({
+module.exports = {
+    userUpdateValidator:{
         name:{type:'string',required:false},
         password:{type:'string',required:false},
         avatar_url:{type:'string',required:false},
         gender:{type:'string',required:false},
         handline:{type:'string',required:false},
-        locations:{type:'array',itemType:'string',required:false},	// 注意itemType
+        locations:{type:'array',itemType:'string',required:false},
         emploments:{type:'array',itemType:'object',required:false},
         educations:{type:'array',itemType:'object',required:false}
-    })
+    }
 }
 ```
 
 ### 11.3 字段过滤
 
-设置schema默认隐藏部分字段
+完善**user的schema**默认隐藏部分字段，但需要使用的时候采用`select(+字段)`形式。
 
 ```js
 const { Schema,model} = mongoose
@@ -936,8 +938,8 @@ const userSchema = new Schema({
     avatar_url:{type:String},									// 头像
     gender:{type:String,enum:['male','female'],default:'male'}, // 性别
     headerline:{type:String},									// 一句话简介
-    locations:{type:[{type:String}],select:false},							// 居住地
-    business:{type:String,select:false},										// 所在行业
+    locations:{type:[{type:String}],select:false},				// 居住地
+    business:{type:String,select:false},						// 所在行业
     employments:{												// 职业经历
         type:[{
             company:{type:String},
@@ -956,21 +958,43 @@ const userSchema = new Schema({
 })
 ```
 
-通过查询字符串显示隐藏字段
-
-我们通过**field**字符串来查询显示隐藏的字段
+通过**查询字符串**显示隐藏字段，我们通过**`field`**字符串来查询显示隐藏的字段
 
 例如：`http://localhost:3000/users/用户id?fields=locations;business`
+
+![image-20240627191914166](https://s2.loli.net/2024/06/27/M6Tmelv52ftuHdQ.png)
+
+优化根据**id**查询，并设置返回内容
 
 ```js
 asycn findById(ctx){
     const {fields = ""} = ctx.query
-    const selectFields = fields.split(';').filter(f=>f).map(f=> '+' + f).join('')
+    const selectFields = fields.split(';').filter(f=>f).map(f=> '+' + f).join(' ')
     const user = await User.findById(ctx.params.id).select(selectFields)
+    if(!user){
+            ctx.throw(404, 'user不存在')
+        } else {
+            ctx.body = user
+        }
 }
 ```
 
-代码中通过split将用`；`隔开的字符串拆分成数组，然后通过filter过滤没有fields内容的情况，通过map拼接数组内的内容，通过join组合字符串
+代码中通过split将用`；`隔开的字符串拆分成数组，然后通过filter过滤没有fields内容的情况，通过map拼接数组内的内容，前面添加+号，通过join组合字符串，注意join后面用**空格**分开，最终结果为`+locations +business`
+
+>**部分验证的实现**
+>
+>我们将user的验证单独分离到了`utils/validate.js`中，这个验证包含了所有的user验证信息，但是，如果我们只需要验证部分信息例如登录时，只需要验证name，password两个属性，那么我们可以采用解构的形式，如下：
+>
+>```js
+>//  ctx.verifyParams(userUpdateValidator,validFields)及第二个参数
+>const {userUpdateValidator} = require('../middlewares/validate')
+>async login(ctx){
+>        const {name:userName,password} = ctx.request.body
+>        const validFields = {userName,password}
+>        ctx.verifyParams(userUpdateValidator,validFields)
+>        ...
+>    }
+>```
 
 ## 12. 关注与粉丝
 
@@ -981,6 +1005,8 @@ asycn findById(ctx){
 获取关注人、粉丝列表（**用户-用户多对多关联**）
 
 ### 12.2 分析关注的schema
+
+在`model/user.js`中添加关注schema，并使其关联，这样我们在查询`following`的时候就可以通过`populate`查询出用户的完整信息了。
 
 ```js
 const { Schema,model} = mongoose
@@ -995,17 +1021,20 @@ const userSchema = new Schema({
 
 **查看某个用户关注人列表**
 
-通过populate就可以关联type:[{type:Schema.Types.ObjectId,ref:'User'}]，从而获取详细的关注信息
+在`controllers/user.js`中通过`populate`就可以关联`type:[{type:Schema.Types.ObjectId,ref:'User'}]`，从而获取详细的关注信息
 
 ```js
 async listFollowing(ctx){
-    const user = await User.findById(ctx.params.id).select('+following').populate('following')
-    if(!user){ctx.throw(404)}
-    ctx.body=user.following
-}
+        const user = await User.findById(ctx.params.id).select('+following').populate('following')
+        if(!user){
+            ctx.throw(404, 'user不存在')
+        } else {
+            ctx.body = user.following
+        }
+    }
 ```
 
-注册到路由中
+在`routes/user.js`注册到路由中
 
 ```js
 router.get('/:id/following',listFowllowing)
@@ -1013,15 +1042,9 @@ router.get('/:id/following',listFowllowing)
 
 ### 12.3 关注与取消关注
 
-**关注**
+**设置关注**，其中id为要关注人的id
 
-其中id为要关注人的id
-
-```js
-router.put('/following/:id',auth，follow)
-```
-
-控制器设置
+在`controllers/user.js`控制器设置
 
 ```js
 async follow(ctx){
@@ -1032,6 +1055,12 @@ async follow(ctx){
     }
    ctx.status = 204
 }
+```
+
+在`routes/user.js`中设置路由
+
+```js
+router.put('/following/:id',auth，follow)
 ```
 
 **取消关注**

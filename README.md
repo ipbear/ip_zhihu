@@ -725,10 +725,7 @@ npm install koa-jwt --save
 ```js
 const koajwt = require('koa-jwt')
 const { secret } = require('../config')
-module.exports = async(ctx,next) => {
-    koajwt({secret})
-    await next()
-}
+module.exports = koajwt({secret})
 ```
 
 将如果jwt令牌有效用户信息**自动**放到了`ctx.state.user`上面
@@ -998,6 +995,8 @@ asycn findById(ctx){
 
 ## 12. 关注与粉丝
 
+![image-20240629224545097](https://s2.loli.net/2024/06/29/34WmviPw7Sd6Dhj.png)
+
 ### 12.1 关注与粉丝分析
 
 关注、取消关注
@@ -1019,19 +1018,19 @@ const userSchema = new Schema({
 })
 ```
 
-**查看某个用户关注人列表**
+**查看某个用户`关注人`列表**
 
 在`controllers/user.js`中通过`populate`就可以关联`type:[{type:Schema.Types.ObjectId,ref:'User'}]`，从而获取详细的关注信息
 
 ```js
 async listFollowing(ctx){
-        const user = await User.findById(ctx.params.id).select('+following').populate('following')
-        if(!user){
-            ctx.throw(404, 'user不存在')
-        } else {
-            ctx.body = user.following
-        }
+    const user = await User.findById(ctx.params.id).select('+following').populate('following')
+    if(!user){
+        ctx.throw(404, 'user不存在')
+    } else {
+        ctx.body = user.following
     }
+}
 ```
 
 在`routes/user.js`注册到路由中
@@ -1042,18 +1041,20 @@ router.get('/:id/following',listFowllowing)
 
 ### 12.3 关注与取消关注
 
-**设置关注**，其中id为要关注人的id
+**关注某人**，其中id为要关注人的id
 
 在`controllers/user.js`控制器设置
 
 ```js
 async follow(ctx){
-    const me = await User.findByID(ctx.state.user._id).select('+following')
-    if(!me.following.map(id =>id.toString()).includes(ctx.parmas.id)){
-         me.following.push(ctx.params.id)
-    	me.save()
+    const me = await User.findById(ctx.state.user._id).select('+following')
+    if(!me.following.map(id => id.toString()).includes(ctx.params.id)){
+        me.following.push(ctx.params.id)
+        await me.save()
+        ctx.body = 204
+    } else {
+        ctx.throw(409, '您已关注该用户')
     }
-   ctx.status = 204
 }
 ```
 
@@ -1063,20 +1064,22 @@ async follow(ctx){
 router.put('/following/:id',auth，follow)
 ```
 
-**取消关注**
+**取消关注某人**
 
 控制器设置
 
 ```js
 async unFollow(ctx){
-    const me = await User.findByID(ctx.state.user._id).select('+following')
-    const index = me.following.map(id=>id.toString()).indexOf(ctx.params.id)
-   if(index > -1){
-       me.following.splice(index,1)
-       me.save()
-   }
-   ctx.status = 204
-}
+     const me = await User.findById(ctx.state.user._id).select('+following')
+     const index = me.following.map(id => id.toString()).indexOf(ctx.params.id)
+     if(index > -1){
+         me.following.splice(index,1)
+         me.save()
+         ctx.body = 204
+     }else{
+         ctx.throw(409,'您没有关注该用户')
+     }
+ }
 ```
 
 注册路由
@@ -1085,7 +1088,7 @@ async unFollow(ctx){
 router.delete('/following/:id',auth，unFollow)
 ```
 
-**查看某个人的粉丝列表**
+**查看某个人的`被关注`（粉丝）列表**
 
 控制器设置
 

@@ -71,6 +71,7 @@ class UserCtl {
             ctx.body = user
         }
     }
+    // 查找用户关注列表
     async listFollowing(ctx){
         const user = await User.findById(ctx.params.id).select('+following').populate('following')
         if(!user){
@@ -79,8 +80,8 @@ class UserCtl {
             ctx.body = user.following
         }
     }
+    // 关注用户
     async follow(ctx){
-        console.log(ctx.state)
         const me = await User.findById(ctx.state.user._id).select('+following')
         if(!me.following.map(id => id.toString()).includes(ctx.params.id)){
             me.following.push(ctx.params.id)
@@ -89,6 +90,23 @@ class UserCtl {
         } else {
             ctx.throw(409, '您已关注该用户')
         }
+    }
+    // 取消关注用户
+    async unFollow(ctx){
+        const me = await User.findById(ctx.state.user._id).select('+following')
+        const index = me.following.map(id => id.toString()).indexOf(ctx.params.id)
+        if(index > -1){
+            me.following.splice(index,1)
+            me.save()
+            ctx.body = 204
+        }else{
+            ctx.throw(409,'您没有关注该用户')
+        }
+    }
+    // 查看某人的被关注（粉丝）列表
+    async listFollowers(ctx){
+        const users = await User.find({following:ctx.params.id})
+        ctx.body = users
     }
 }
 module.exports = new UserCtl();

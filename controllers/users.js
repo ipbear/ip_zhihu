@@ -58,13 +58,30 @@ class UserCtl {
     }
        // 查找用户列表
     async find(ctx) {
-        ctx.body = await User.find()
+        const {per_page=10} = ctx.query
+        const page = Math.max(ctx.query.page*1,1) -1
+        const perPage = Math.max(per_page*1,1)
+        const ret = await User.find({name:new RegExp(ctx.query.name, 'i')}).limit(perPage).skip(page*perPage)
+        if(!ret){
+            ctx.throw(404,'用户不存在')
+        }else{
+            ctx.body = ret
+        }
     }
     // 查找特定用户
     async findById(ctx) {
         const {fileds = ""} = ctx.request.query
-        const selectFileds = fileds.split(';').filter(f => f).map(f => ' +' + f)
-        const user = await User.findById(ctx.params.id).select(selectFileds.join(' '))
+        const selectFileds = fileds.split(';').filter(f => f).map(f => ' +' + f).join(' ')
+        const populateStr = fileds.split(';').filter(f=>f).map(f=>{
+            if(f === 'employments'){
+                return 'employments.company employments.job'
+            }
+            if(f === 'education'){
+                return 'education.school education.major'
+            }
+            return f
+        })
+        const user = await User.findById(ctx.params.id).select(selectFileds).populate(populateStr)
         if(!user){
             ctx.throw(404, 'user不存在')
         } else {

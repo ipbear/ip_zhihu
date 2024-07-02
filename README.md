@@ -558,9 +558,17 @@ class UserCtl {
         }
 
     }
-       // 查找用户列表
+    // 查找用户列表分页查询
     async find(ctx) {
-        ctx.body = await User.find()
+        const {per_page=10} = ctx.query
+        const page = Math.max(ctx.query.page*1,1) -1
+        const perPage = Math.max(per_page*1,1)
+        const ret = await User.find().limit(perPage).skip(page*perPage)
+        if(!ret){
+            ctx.throw(404,'用户不存在')
+        }else{
+            ctx.body = ret
+        }
     }
     // 查找特定用户
     async findById(ctx) {
@@ -1041,6 +1049,8 @@ router.get('/:id/following',listFowllowing)
 
 ### 12.3 关注与取消关注
 
+![image-20240701091144910](https://s2.loli.net/2024/07/01/NkbAqEOf7GaXtPy.png)
+
 **关注某人**，其中id为要关注人的id
 
 在`controllers/user.js`控制器设置
@@ -1090,6 +1100,8 @@ router.delete('/following/:id',auth，unFollow)
 
 **查看某个人的`被关注`（粉丝）列表**
 
+![image-20240701091252810](C:\Users\15966\AppData\Roaming\Typora\typora-user-images\image-20240701091252810.png)
+
 控制器设置
 
 ```js
@@ -1107,19 +1119,23 @@ router.get('/:id/followers',listFollowers)
 
 ### 12.4 编写用户存在与否的中间件
 
-执行关注或取消关注是校验一下用户是否存在
+在`middlewares/user.js`中执行关注或取消关注是校验一下用户是否存在
 
 ```js
-async checkUserExist(ctx,next){
-    const user = await User.findById(ctx.params.id)
-    if(!user){ctx.throw(404,'用户不存在')}
-    await next()
+class UserValidate {
+    async checkUserExist(ctx,next){
+        const user = await UserActivation.findById(ctx.params.id)
+        if(!user) ctx.throw(400, '用户不存在')
+        await next()
+    }
 }
+module.exports = new UserValidate()
 ```
 
 调用中间件
 
 ```js
+const {checkUserExist}  = require('middlewares/users.js')
 router.put('/following/:id',auth,checkUserExist,follow)
 router.delete('/following/:id',auth,checkUserExist,unFollow)
 ```
@@ -1138,20 +1154,38 @@ router.delete('/following/:id',auth,checkUserExist,unFollow)
 
 设计Schema
 
-设置话题topic的Schema
+在`models/topic.js`中设置话题topic的Schema
 
 ```js
 const mongoose = require('mongoose')
 const { Schema, model} = mongoose
 const topicSchema = new Schema({
-    __v:{type:Number,select:false},
+    __v:{type:String,select:false},
     name:{type:String,required:true},
     avatar_url:{type:String},
     introduction:{type:String,select:false}
 })
 ```
 
-实现restfull风格的增改查接口
+在`utils/validate.js`中设置话题验证
+
+```js
+module.exports = {
+   ...
+    topicCreateValidator:{
+        name:{type:'string',require:true},
+        avatar_url:{type:'string',required:false},
+        introduction:{type:'string',required:false}
+    },
+      topicUpdateValidator:{
+        name:{type:'string',require:false},
+        avatar_url:{type:'string',required:false},
+        introduction:{type:'string',required:false}
+    }
+}
+```
+
+在`controllers/topics.js`中实现restfull风格的增改查接口
 
 ```js
 class TopicsCtl {
@@ -1165,15 +1199,16 @@ class TopicsCtl {
         const topic = await Topic.findById(ctx.params.id).select(selectFields)
         ctx.body = topic
     }
-    // 创建话题
+    // 增加话题
     async create(ctx){
-		ctx.verifyParams({
-            name:{type:'string',required:true},
-            avatar_url:{type:'string',required:false},
-            introduction:{type:'string',required:false}
-        })
-        const topic = await new Topic(ctx.request.body).save()
-        ctx.body = topic
+        ctx.verifyParams(topicCreateValidator)
+       const reapeatUser = await Topic.findOne({name:ctx.request.body.name})
+       if(reapeatUser){
+           ctx.throw(409, '话题已存在')
+       } else {
+           const topic = await new Topic(ctx.request.body).save()
+           ctx.body = topic
+       }
     }
     // 更新话题
     async update(ctx){
@@ -1202,20 +1237,20 @@ router.post('/',auth,create)
 router.patch('/:id',auth,update)
 ```
 
-### 13.2 分页
+### 13.2 查询完善分页
 
-修改话题的分页功能
+修改**话题**的分页功能
 
 ```js
 async find(ctx){
-    const {per_page = 10} = ctx.query
-    const page = Math.max(ctx.query.page * 1,1) -1
-    const perPage = Math.max(per_page * 1 ,1)
+    const {per_page = 10} = ctx.query				// 每页显示条数
+    const page = Math.max(ctx.query.page * 1,1) -1  // 页码最小为1
+    const perPage = Math.max(per_page * 1 ,1)       // 每页最小显示1条
     ctx.body = await Topic.find().limit(perPage).skip(page * perPage)
 }
 ```
 
-修改用户的分页功能
+修改**用户**的分页功能
 
 ```js
 async find(ctx){
@@ -1230,7 +1265,7 @@ async find(ctx){
 
 采用正则表达式的形式进行查询`new RegExp(ctx.query.q)`
 
-话题的模糊查询
+**话题**的模糊查询
 
 ```js
 async find(ctx){
@@ -1238,12 +1273,12 @@ async find(ctx){
     const page = Math.max(ctx.query.page * 1,1) -1 
     const perPage = Math.max(per_page * 1,1)
     ctx.body = await Topic
-    	.find({name: new RegExp(ctx.query.q)})
+    	.find({name:new RegExp(ctx.query.name, 'i')})
     	.limit(perPage).skip(page * perPage)
 }
 ```
 
-用户的模糊查询
+**用户**的模糊查询
 
 ```js
 async find(ctx){
@@ -1251,14 +1286,14 @@ async find(ctx){
     const page = Math.max(ctx.query.page * 1,1) -1 
     const perPage = Math.max(per_page * 1,1)
     ctx.body = await User
-    	.find({name: new RegExp(ctx.query.q)})
+    	.find({name:new RegExp(ctx.query.name, 'i')})
     	.limit(perPage).skip(page * perPage)
 }
 ```
 
 ### 13.4 用户属性中的话题引用
 
-使用话题应用来替代部分用户属性
+使用话题应用来替代部分用户属性，这样就可以采用populate获取详细信息
 
 ```js
 // 原先的string改为引用
@@ -1319,7 +1354,7 @@ async findById(ctx){
 
 用户-话题多对多关系
 
-用户关注话题与取消关注，在users.js中添加
+用户关注话题与取消关注，在`users.js`中添加
 
 ```js
 followingTopics: {

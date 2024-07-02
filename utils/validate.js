@@ -8,5 +8,15 @@ module.exports = {
         locations:{type:'array',itemType:'string',required:false},
         emploments:{type:'array',itemType:'object',required:false},
         educations:{type:'array',itemType:'object',required:false}
+    },
+    topicCreateValidator:{
+        name:{type:'string',require:true},
+        avatar_url:{type:'string',required:true},
+        introduction:{type:'string',required:true}
+    },
+    topicUpdateValidator:{
+        name:{type:'string',require:false},
+        avatar_url:{type:'string',required:false},
+        introduction:{type:'string',required:false}
     }
 }
